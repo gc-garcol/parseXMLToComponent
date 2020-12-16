@@ -25459,11 +25459,63 @@ exports.select1 = function(e, doc) {
 })(xpath);
 
 },{}],100:[function(require,module,exports){
+const HeandingComponent = {};
+
+HeandingComponent["level-two"] = (headerName) => {
+    return `
+<h2 class="header-two">${headerName}<h2>
+`;
+}
+
+HeandingComponent["level-three"] = (headerName) => {
+    return `
+<h3 class="header-two">${headerName}<h3>
+`;
+}
+
+
+module.exports = HeandingComponent;
+},{}],101:[function(require,module,exports){
+const InputComponent = {};
+
+InputComponent["A130_one-input"] = (label, inputProps) =>  {
+    return `
+<p>${label}</p><br>
+<input type="text" id="fname" name="${inputProps[0].name}" value="John" maxlength="${inputProps[0].maxlength}">
+`;
+}; 
+
+InputComponent["A131_two-input"] = (label, inputProps) =>  {
+    return `
+<p>${label}</p><br>
+<input type="text" name="${inputProps[0].name}" value="John" maxlength="${inputProps[0].maxlength}">
+<input type="text" name="${inputProps[1].name}" value="John" maxlength="${inputProps[1].maxlength}">
+`;
+}; 
+
+InputComponent["A132_selection_box"] = (label, inputProps) =>  {
+    return `
+<p>${label}</p><br>
+<input type="hidden" name="${inputProps[0].name}" maxlength="${inputProps[0].maxlength}">
+<select name="cars" id="cars">
+    <option value="volvo">Volvo</option>
+    <option value="saab">Saab</option>
+    <option value="opel">Opel</option>
+    <option value="audi">Audi</option>
+</select>
+`;
+}; 
+
+module.exports = InputComponent;
+},{}],102:[function(require,module,exports){
+
+const InputComponent = require("./InputComponent");
+const HeandingComponent = require("./HeadingComponent");
 class UIMapper {
     
     constructor() {
-        this.components = {};
-        this.headers = {};
+        this.components = InputComponent;
+        this.headers = HeandingComponent;
     }
 
     /**
@@ -25489,79 +25541,64 @@ class UIMapper {
 
 const INSTANCE = new UIMapper();
 
-INSTANCE.headers["level-one"] = (headerName) => {
-    return `
-<h1 class="header-one">${headerName}<h1>
-    `;
-}
-
-INSTANCE.headers["level-two"] = (headerName) => {
-    return `
-        <h2 class="header-two">${headerName}<h2>
-    `;
-}
-
-INSTANCE.components["A130_one-input"] = (label, inputProps) =>  {
-    return `
-<p>${label}</p><br>
-<input type="text" id="fname" name="${inputProps[0].name}" value="John" maxlength="${inputProps[0].maxlength}"><br>
-    `;
-}; 
-
-INSTANCE.components["A131_two-input"] = (label, inputProps) =>  {
-    return `
-<p>${label}</p><br>
-<input type="text" id="fname" name="${inputProps[0].name}" value="John" maxlength="${inputProps[0].maxlength}">
-<input type="text" id="fname" name="${inputProps[1].name}" value="John" maxlength="${inputProps[1].maxlength}"><br>
-    `;
-}; 
-
-INSTANCE.components["A132_selection_box"] = (label, inputProps) =>  {
-    return `
-<p>${label}</p><br>
-<input type="hidden" name="${inputProps[0].name}" maxlength="${inputProps[0].maxlength}">
-<select name="cars" id="cars">
-    <option value="volvo">Volvo</option>
-    <option value="saab">Saab</option>
-    <option value="opel">Opel</option>
-    <option value="audi">Audi</option>
-</select>
-    `;
-}; 
-
 module.exports = INSTANCE;
-},{}],101:[function(require,module,exports){
+},{"./HeadingComponent":100,"./InputComponent":101}],103:[function(require,module,exports){
 const readXlsxFile = require("read-excel-file");
 const UIMapper = require("./components/UIMapper");
+const ReadRowStrategy = require("./utils/ReadRowStrategy");
 
 class Index {
+
     constructor() {
         this.textarea = document.querySelectorAll("textarea")[0];
         this.fileInput = document.getElementById("js-file");
+        this.fileInput.addEventListener('change', this.buildRows.bind(this));
+        this.initBlockCode();
     }
 
     render(rows) {
         let data = [];
 
-        rows.forEach(row => {
-            data.push(UIMapper.renderInput(row.componentType, row.labelName, row.inputs));
+        let curLevel2 = null;
+        let curLevel3 = null;
+
+        rows.forEach((row, index) => {
+            if (index == 0) return;
+
+            if (curLevel2 != row.level2) {
+                curLevel2 = row.level2;
+                data.push(UIMapper.renderHeader("level-two", row.level2));
+            }
+
+            if (curLevel3 != row.level3) {
+                curLevel3 = row.level3;
+                data.push(UIMapper.renderHeader("level-three", row.level3));
+            }
+
+            if (curLevel2 == row.level2 && curLevel3 == row.level3) {
+                data.push(UIMapper.renderInput(row.componentType, row.labelName, row.inputs));
+            }
         });
 
-        this.textarea.innerHTML = data.join("");
-
-        this.initBlockCode();
+        this.editor.getDoc().setValue(data.join(""));
     }
 
-    initInputFileOnChangeEvent() {
-        this.fileInput.addEventListener('change', () => {
-            readXlsxFile(input.files[0]).then((rows) => {
-                
-            })
-        })
+    buildRows() {
+        if (this.fileInput.files.length == 0) return;
+
+        let self = this;
+        readXlsxFile(this.fileInput.files[0])
+            .then((rows) => {
+                let instance = new ReadRowStrategy();
+                instance.build(rows);
+                let parseRows = instance.data;
+                console.log(parseRows);
+                self.render(parseRows);
+            });
     }
 
     initBlockCode = () => {
-        var editor = CodeMirror.fromTextArea(this.textarea, {
+        this.editor = CodeMirror.fromTextArea(this.textarea, {
             lineNumbers: true,
             styleActiveLine: true,
             matchBrackets: true,
@@ -25583,21 +25620,69 @@ const mixedMode = {
 
 const index = new Index();
 
-const fakeData = [
-    {
-        componentType: "A130_one-input",
-        labelName: "labelName0",
-        inputs: [{name: "thai", maxlength: "3"}]
-    },
-    {
-        componentType: "A132_selection_box",
-        labelName: "labelName1",
-        inputs: [{name: "thai", maxlength: "3"}]
+const btnCopy = document.getElementsByClassName("js-copy")[0].addEventListener('click', () => {
+    navigator.clipboard.writeText(index.editor.getValue());
+});
+
+// const fakeData = [
+//     {
+//         componentType: "A130_one-input",
+//         labelName: "labelName0",
+//         inputs: [{name: "garcol", maxlength: "3"}]
+//     },
+//     {
+//         componentType: "A132_selection_box",
+//         labelName: "labelName1",
+//         inputs: [{name: "garcol", maxlength: "3"}]
+//     }, 
+//     {
+//         componentType: "A131_two-input",
+//         labelName: "labelName1",
+//         inputs: [{name: "garcol", maxlength: "3"}, {name: "garcol", maxlength: "3"}]
+//     }
+// ];
+
+// index.render(fakeData);
+
+
+
+},{"./components/UIMapper":102,"./utils/ReadRowStrategy":104,"read-excel-file":76}],104:[function(require,module,exports){
+class ReadRowStrategy {
+
+    constructor() {
+        this.data = [];
     }
-];
 
-index.render(fakeData);
+    build(rows) {
+        rows.forEach(row => {
+            let labelName = this.trim(row, 0);
+            let level2 = this.trim(row, 1);
+            let level3 = this.trim(row, 2);
+            let inputName = this.trim(row, 3);
+            let maxLength = this.trim(row, 4);
+            let componentType = this.trim(row, 5);
 
+            let size = this.data.length;
+            if (size > 0 && this.data[size - 1].labelName == labelName && this.data[size - 1].level2 == level2 && this.data[size - 1].level3 == level3) {
+                this.data[size - 1].inputs.push({name: inputName, maxlength: maxLength});
+            } else {
+                let parseData = {
+                    level2: level2,
+                    level3: level3,
+                    labelName: labelName,
+                    inputs: [{name: inputName, maxlength: maxLength}],
+                    componentType: componentType
+                }
+                this.data.push(parseData);
+            }
+        })
+    }
 
+    trim(row, index) {
+        return row[index] ? (row[index] + "").trim() : row[index];
+    }
 
-},{"./components/UIMapper":100,"read-excel-file":76}]},{},[101]);
+}
+
+module.exports = ReadRowStrategy;
+},{}]},{},[103]);
